@@ -1,5 +1,5 @@
 # DRL4Route
-DRL4Route: A Deep Reinforcement Learning Framework for Pick-up and Delivery Route Predictio.
+DRL4Route: A Deep Reinforcement Learning Framework for Pick-up and Delivery Route Prediction.
 
 # Usage
 Use the following command to run the code: `python run.py`
