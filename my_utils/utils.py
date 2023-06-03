@@ -312,22 +312,23 @@ def calc_reward(sample, label, params):
     #calculate rewar of each step
     sample = sample.detach().cpu().tolist()
     label = label.detach().cpu().tolist()
-    reward = params['r_0'] #set initial reward
+    reward = params['r_0'] #set reward
     valid_label_length = len(label)
-    if valid_label_length == 0:
-        return 0
-    else:
-        idx_diff_list = []
-        if sample[-1] not in label: #只看最后一个动作
-            if sample.index(sample[-1]) > valid_label_length - 1: #already available label
-                return 0
-            else:
-                idx_diff_list.append(math.fabs(valid_label_length - sample.index(sample[-1])))
+    #perfectly match
+    if sample[-1] in label:
+        if label.index(sample[-1]) == sample.index(sample[-1]):
+            return reward
+    idx_diff_list = []
+    if sample[-1] not in label: #sample not in label
+        if sample.index(sample[-1]) > valid_label_length - 1: #already output all valid samples, do not evaluate
+            return 0
         else:
-            idx_diff_list.append(math.fabs(label.index(sample[-1]) - sample.index(sample[-1])))
-        idx_diff_list = list(map(lambda x: x ** 2, idx_diff_list))
-        reward = reward - sum(idx_diff_list) / len(idx_diff_list)
-        return reward
+            idx_diff_list.append(math.fabs(valid_label_length - sample.index(sample[-1]))) #incorrect sample outputted during the positions of label
+    else:
+        idx_diff_list.append(math.fabs(label.index(sample[-1]) - sample.index(sample[-1]))) #sample outputted during the positions of label
+    idx_diff_list = list(map(lambda x: x ** 2, idx_diff_list))
+    reward =  - sum(idx_diff_list) / len(idx_diff_list)
+    return reward
 
 def calc_single_reward(sample, label, params):
     reward = []
