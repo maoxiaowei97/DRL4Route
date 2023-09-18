@@ -54,13 +54,22 @@ def process_batch(batch, model, device, params):
         _, greedy_out, _ = model(V, V_reach_mask, sample=False, type='rl')
     if params['model'] == 'DRL4Route_REINFORCE':
         seq_pred_len = torch.sum((pred_pointers.reshape(-1, N) < N - 1) + 0, dim=1)
-        seq_pred_len = seq_pred_len.masked_fill(seq_pred_len == 0, 1)
-        rl_log_probs = torch.sum(rl_log_probs, dim=1) / seq_pred_len
 
-        sample_out_samples, label_samples, label_len_samples, rl_log_probs_samples = \
-            get_reinforce_samples(sample_out.reshape(-1, N), label.reshape(-1, N), label_len.reshape(-1), params['pad_value'], rl_log_probs)
+        sample_out_samples, greedy_out_samples, label_samples, label_len_samples, rl_log_probs_samples, seq_pred_len_samples = \
+            get_reinforce_samples(sample_out.reshape(-1, N), greedy_out.reshape(-1, N), label.reshape(-1, N), label_len.reshape(-1), params['pad_value'], rl_log_probs, seq_pred_len)
+
+        log_prob_mask = get_log_prob_mask(seq_pred_len_samples, params)
+
+        rl_log_probs_samples = rl_log_probs_samples * log_prob_mask
+
+        rl_log_probs_samples = torch.sum(rl_log_probs_samples, dim=1) / seq_pred_len_samples
+
         krc_reward, lsd_reward, acc_3_reward = calc_reinforce_rewards(sample_out_samples, label_samples, label_len_samples, params)
-        reinforce_loss = -torch.mean(torch.tensor(lsd_reward).to(rl_log_probs_samples.device) * rl_log_probs_samples)
+
+        baseline_krc_reward, baseline_lsd_reward, baseline_acc_3_reward = calc_reinforce_rewards(greedy_out_samples, label_samples, label_len_samples, params)
+
+        reinforce_loss = -torch.mean(torch.tensor(baseline_lsd_reward - lsd_reward).to(rl_log_probs_samples.device) * rl_log_probs_samples)
+
         loss = mle_loss + params['rl_ratio'] * reinforce_loss
     else:
         loss = mle_loss
@@ -75,20 +84,3 @@ def get_params():
     parser = get_common_params()
     args, _ = parser.parse_known_args()
     return args
-
-if __name__ == '__main__':
-    import time, nni
-    import logging
-
-    logger = logging.getLogger('training')
-    print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-    print('GPU:', torch.cuda.current_device())
-    try:
-        tuner_params = nni.get_next_parameter()
-        logger.debug(tuner_params)
-        params = vars(get_params())
-        params.update(tuner_params)
-        main(params)
-    except Exception as exception:
-        logger.exception(exception)
-        raise
