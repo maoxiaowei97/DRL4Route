@@ -26,8 +26,8 @@ if __name__ == "__main__":
     params['model_path'] =  ''
 
     args_lst = []
-    for model in ['DRL4Route_REINFORCE_GAE', 'DRL4Route_REINFORCE']:
-        for hs in [16, 16]:
+    for model in ['DRL4Route_REINFORCE', 'DRL4Route_REINFORCE_GAE']:
+        for hs in [64]:
             for rl_r in [0.3]:
                 for trace_decay in [0.99]:
                     deeproute_params = {'model': model, 'hidden_size': hs, 'rl_ratio':rl_r, 'trace_decay': trace_decay}
