@@ -39,10 +39,17 @@ def calc_reinforce_rewards(prediction, label, label_len, params):
         tmp = list(filter(lambda pi: pi in input, p))
         pred.append(tmp)
     r_krc = np.array([kendall_rank_correlation(pre, lab, lab_len) for pre, lab, lab_len in zip(pred, label, label_len)])
-    r_lsd = params['r_0'] - np.array([location_deviation(pre, lab, lab_len, 'square') for pre, lab, lab_len in zip(pred, label, label_len)])
+    r_lsd = np.array([location_deviation(pre, lab, lab_len, 'square') for pre, lab, lab_len in zip(pred, label, label_len)])
     r_acc_3 = np.array([route_acc(pre, lab[:lab_len], 2 + 1) for pre, lab, lab_len in zip(pred, label, label_len)])
 
     return r_krc, r_lsd, r_acc_3
+
+def get_log_prob_mask(pred_len, params):
+    log_prob_mask = torch.zeros([pred_len.shape[0], params['max_task_num']]).to(pred_len.device)
+    for i in range(len(pred_len)):
+        valid_len = pred_len[i].long().item()
+        log_prob_mask[i][:valid_len] = 1
+    return log_prob_mask
 
 def save2file_meta(params, file_name, head):
     def timestamp2str(stamp):
@@ -60,8 +67,6 @@ def save2file_meta(params, file_name, head):
         csv_file = csv.writer(f)
         csv_file.writerow(head)
         f.close()
-    # write_to_hdfs(file_name, head)
-    # 写数据
     with open(file_name, "a", newline='\n') as file:  # 处理csv读写时不同换行符  linux:\n    windows:\r\n    mac:\r
         csv_file = csv.writer(file)
         # params['log_time'] = str(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())) #不同服务器上时间不一样
@@ -275,19 +280,23 @@ def to_device(batch, device):
     batch = [x.to(device) for x in batch]
     return batch
 
-def get_reinforce_samples(pred_steps, label_steps, label_len, pad_value, rl_log_probs):
+def get_reinforce_samples(pred_steps, greedy_pred_steps, label_steps, label_len, pad_value, rl_log_probs, pred_len_steps):
     pred = []
+    greedy_pred = []
     label = []
     label_len_list = []
     rl_log_probs_list = []
+    pred_lens = []
     for i in range(pred_steps.size()[0]):
         if label_steps[i].min().item() != pad_value:
             label.append(label_steps[i].cpu().numpy().tolist())
             pred.append(pred_steps[i].cpu().numpy().tolist())
+            greedy_pred.append(greedy_pred_steps[i].cpu().numpy().tolist())
             label_len_list.append(label_len[i].cpu().numpy().tolist())
             rl_log_probs_list.append(rl_log_probs[i])
-    return torch.LongTensor(pred), torch.LongTensor(label), \
-           torch.LongTensor(label_len_list), torch.stack(rl_log_probs_list)
+            pred_lens.append(pred_len_steps[i].cpu().numpy().tolist())
+    return torch.LongTensor(pred), torch.LongTensor(greedy_pred), torch.LongTensor(label), \
+           torch.LongTensor(label_len_list), torch.stack(rl_log_probs_list), torch.LongTensor(pred_lens).to(pred_steps.device)
 
 def get_samples(pred_steps, label_steps, label_len, pad_value):
     pred = []
@@ -458,7 +467,6 @@ class DRL4Route(object):
             Acotr_model.to(self.device)
             model = Acotr_model
         else:
-            params['model_path'] = params['model_path']
             AC_model = ActorCritic.RoutePredictionAgent(params)
             AC_model_dict = AC_model.state_dict()
             try:
@@ -529,8 +537,5 @@ class DRL4Route(object):
         print('Best epoch: ', early_stop.best_epoch)
         print(f'{params["model"]} Evaluation in test:', test_result.to_str())
 
-
-if __name__ == '__main__':
-    pass
 
 
