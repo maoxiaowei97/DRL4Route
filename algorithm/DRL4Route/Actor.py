@@ -515,7 +515,7 @@ class RoutePredictionAgent(nn.Module):
         """
         Encode the sort emb and paper the input for Decoder
         """
-        attn_mask = (~mask_index +0).repeat_interleave(max_seq_len).reshape(batch_size, max_seq_len, max_seq_len)
+        attn_mask = (mask_index +0).repeat_interleave(max_seq_len).reshape(batch_size, max_seq_len, max_seq_len).permute(0, 2, 1).contiguous()
         attn_mask = attn_mask.to(sort_emb.device)
         sort_encoder_outputs, emb = self.sort_encoder(sort_emb,
                                                       attn_mask)  # sort_encoder_outputs:(batch_size, max_seq_len, sort_hidden_size), # emb: (batch_size,  sort_hidden_size)
