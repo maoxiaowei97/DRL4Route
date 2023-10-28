@@ -507,14 +507,6 @@ class RoutePredictionAgent(nn.Module):
 
         return attn_mask
 
-    def get_init_mask(self, max_seq_len, batch_size, sort_len):
-        """
-        Get the init mask for decoder
-        """
-        range_tensor = torch.arange(max_seq_len, device=sort_len.device, dtype=sort_len.dtype).expand(batch_size, max_seq_len)
-        each_len_tensor = sort_len.view(-1, 1).expand(batch_size, max_seq_len)
-        raw_mask_tensor = range_tensor >= each_len_tensor
-        return raw_mask_tensor
 
     def enc_sort_emb(self, sort_emb, batch_size, max_seq_len, mask_index):
         """
