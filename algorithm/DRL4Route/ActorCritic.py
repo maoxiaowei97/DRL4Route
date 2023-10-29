@@ -474,47 +474,15 @@ class RoutePredictionAgent(nn.Module):
                 if m.bias is not None:
                     torch.nn.init.zeros_(m.bias)
 
-    def get_seq_mask(self, max_seq_len, batch_size, sort_len):
-        """
-        Get the mask Tensor for sort task
-        """
-        range_tensor = torch.arange(max_seq_len, device=sort_len.device, dtype=sort_len.dtype).expand(batch_size,
-                                                                                                      max_seq_len,
-                                                                                                      max_seq_len)
-        each_len_tensor = sort_len.view(-1, 1, 1).expand(batch_size, max_seq_len, max_seq_len)
-        row_mask_tensor = (range_tensor < each_len_tensor)
-        col_mask_tensor = row_mask_tensor.transpose(1, 2)
-        mask_tensor = row_mask_tensor * col_mask_tensor
-        mask_tensor = mask_tensor.bool()
-        return mask_tensor
-
-    def get_transformer_attn_mask(self, max_seq_len, batch_size, sort_len):
-        """
-        Get the mask Tensor for Transformer attention
-        :return:
-        """
-        range_tensor = torch.arange(max_seq_len, device=sort_len.device, dtype=sort_len.dtype).expand(batch_size,
-                                                                                                      max_seq_len,
-                                                                                                      max_seq_len)
-        each_len_tensor = sort_len.view(-1, 1, 1).expand(batch_size, max_seq_len, max_seq_len)
-        row_mask_tensor = (range_tensor < each_len_tensor)
-        col_mask_tensor = row_mask_tensor.transpose(1, 2)
-        mask_tensor = row_mask_tensor * col_mask_tensor
-
-        attn_mask = torch.ones((batch_size, max_seq_len, max_seq_len), dtype=torch.long)
-        attn_mask[mask_tensor] = 0
-        attn_mask = torch.LongTensor(attn_mask)
-
-        return attn_mask
-
 
     def enc_sort_emb(self, sort_emb, batch_size, max_seq_len, mask_index):
         """
         Encode the sort emb and prepare the input for Decoder
         """
-
+        mask_indices = torch.nonzero(mask_index + 0) 
         attn_mask = (mask_index +0).repeat_interleave(max_seq_len).reshape(batch_size, max_seq_len, max_seq_len).permute(0, 2, 1).contiguous()
         attn_mask = attn_mask.to(sort_emb.device)
+        attn_mask[mask_indices[:, 0], mask_indices[:, 1], :] = 1
         sort_encoder_outputs, emb = self.sort_encoder(sort_emb, attn_mask)  # sort_encoder_outputs:(batch_size, max_seq_len, sort_hidden_size), # emb: (batch_size,  sort_hidden_size)
         dec_init_state = (emb, emb)
         decoder_input = sort_encoder_outputs.new_zeros(torch.Size((batch_size, self.hidden_size)))
